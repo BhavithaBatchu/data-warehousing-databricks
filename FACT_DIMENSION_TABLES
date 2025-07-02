@@ -1,0 +1,235 @@
+-- Databricks notebook source
+CREATE DATABASE SALES_NEW;
+
+-- COMMAND ----------
+
+CREATE TABLE SALES_NEW.Orders (
+OrderID INT,
+OrderDate DATE,
+CustomerID INT,
+CustomerName VARCHAR(100),
+CustomerEmail VARCHAR(100),
+ProductID INT,
+ProductName VARCHAR(100),
+ProductCategory VARCHAR(50),
+RegionID INT,
+RegionName VARCHAR(50),
+Country VARCHAR(50),
+Quantity INT,
+UnitPrice DECIMAL(10,2),
+TotalAmount DECIMAL (10,2));
+
+-- COMMAND ----------
+
+INSERT INTO SALES_NEW.Orders (OrderID, OrderDate, CustomerID, CustomerName, CustomerEmail, ProductID, ProductName, ProductCategory, RegionID, RegionName, Country, Quantity, UnitPrice, TotalAmount) VALUES
+(1, '2024-02-01', 101, 'Alice Johnson', 'alice@example.com', 201, 'Laptop', 'Electronics', 301, 'North America', 'USA', 2, 800.00, 1600.00),
+(2, '2024-02-02', 102, 'Bob Smith', 'bob@example.com', 202, 'Smartphone', 'Electronics', 302, 'Europe', 'Germany', 1, 500.00, 500.00),
+(3, '2024-02-03', 103, 'Charlie Brown', 'charlie@example.com', 203, 'Tablet', 'Electronics', 303, 'Asia', 'India', 3, 300.00, 900.00),
+(4, '2024-02-04', 101, 'Alice Johnson', 'alice@example.com', 204, 'Headphones', 'Accessories', 301, 'North America', 'USA', 1, 150.00, 150.00),
+(5, '2024-02-05', 104, 'David Lee', 'david@example.com', 205, 'Gaming Console', 'Electronics', 302, 'Europe', 'France', 1, 400.00, 400.00),
+(6, '2024-02-06', 102, 'Bob Smith', 'bob@example.com', 206, 'Smartwatch', 'Electronics', 303, 'Asia', 'China', 2, 200.00, 400.00),
+(7, '2024-02-07', 105, 'Eve Adams', 'eve@example.com', 201, 'Laptop', 'Electronics', 301, 'North America', 'Canada', 1, 800.00, 800.00),
+(8, '2024-02-08', 106, 'Frank Miller', 'frank@example.com', 207, 'Monitor', 'Accessories', 302, 'Europe', 'Italy', 2, 250.00, 500.00),
+(9, '2024-02-09', 107, 'Grace White', 'grace@example.com', 208, 'Keyboard', 'Accessories', 303, 'Asia', 'Japan', 3, 100.00, 300.00),
+(10, '2024-02-10', 104, 'David Lee', 'david@example.com', 209, 'Mouse', 'Accessories', 301, 'North America', 'USA', 1, 50.00, 50.00);
+
+-- COMMAND ----------
+
+SELECT * fROM sales_new.orders;
+
+-- COMMAND ----------
+
+CREATE DATABASE ordersDWH;
+
+-- COMMAND ----------
+
+CREATE  or replace  TABLE ordersDWH.stg_sales AS SELECT * FROM sales_new.orders
+
+-- COMMAND ----------
+
+-- MAGIC %md
+-- MAGIC ## TRANSFORMATION
+
+-- COMMAND ----------
+
+CREATE VIEW ordersdwh.trans_sales
+AS
+SELECT * FROM ordersdwh.stg_sales where quantity is not null;
+
+-- COMMAND ----------
+
+select * from ordersdwh.trans_sales;
+
+-- COMMAND ----------
+
+-- MAGIC %md
+-- MAGIC ###DIMCUSTOMER
+
+-- COMMAND ----------
+
+CREATE OR REPLACE TABLE ordersDWH.DimCustomers
+(
+    CustomerID INT,
+    DimCustomersKey INT,
+    CustomerName STRING,
+    CustomerEmail STRING
+);
+
+
+-- COMMAND ----------
+
+CREATE OR REPLACE  VIEW ordersDWH.VIEW_DIMCUSTOMERS
+AS
+SELECT T.*, row_number() over(ORDER BY T.CustomerID) as DimCustomersKey 
+FROM (
+    SELECT
+        DISTINCT(CustomerID) as CustomerID,
+        CustomerName,
+        CustomerEmail
+    FROM
+        ordersDWH.trans_sales
+) AS T
+;
+
+
+-- COMMAND ----------
+
+ INSERT INTO ordersdwh.dimcustomers 
+ SELECT CustomerID,DimCustomersKey,CustomerName,CustomerEmail FROM ordersDWH.VIEW_DIMCUSTOMERS;
+
+
+-- COMMAND ----------
+
+-- MAGIC %md
+-- MAGIC ## DIMENSION DIMPRODUCT
+
+-- COMMAND ----------
+
+CREATE OR REPLACE TABLE ordersDWH.DimProducts (
+    ProductID INT,
+    DimProductsKey INT,
+    ProductName STRING,
+    ProductCategory STRING
+);
+
+
+-- COMMAND ----------
+
+CREATE OR REPLACE  VIEW ordersDWH.VIEW_DimProducts
+AS
+SELECT T.*, row_number() over(ORDER BY T.ProductID) as DimProductsKey 
+FROM (
+    SELECT
+        DISTINCT(ProductID) as ProductID,
+        ProductName,
+        ProductCategory
+    FROM
+        ordersDWH.trans_sales
+) AS T
+;
+
+-- COMMAND ----------
+
+ INSERT INTO ordersdwh.DimProducts 
+ SELECT ProductID,DimProductsKey,ProductName,ProductCategory FROM ordersDWH.VIEW_DimProducts;
+
+-- COMMAND ----------
+
+-- MAGIC %md
+-- MAGIC ##DIMREGION
+
+-- COMMAND ----------
+
+CREATE OR REPLACE TABLE ordersDWH.DimRegion
+(
+    RegionID INT,
+    DimRegionKey INT,
+    RegionName STRING,
+    Country STRING
+);
+
+-- COMMAND ----------
+
+CREATE OR REPLACE  VIEW ordersDWH.VIEW_DimRegion
+AS
+SELECT T.*, row_number() over(ORDER BY T.RegionID) as DimRegionKey 
+FROM (
+    SELECT
+        DISTINCT(RegionID) as RegionID,
+        RegionName,
+        Country
+    FROM
+        ordersDWH.trans_sales
+) AS T
+;
+
+-- COMMAND ----------
+
+INSERT INTO ordersdwh.DimRegion
+ SELECT RegionID,DimRegionKey,RegionName,Country FROM ordersDWH.view_dimregion;
+
+-- COMMAND ----------
+
+-- MAGIC %md
+-- MAGIC ##DIMDATE
+
+-- COMMAND ----------
+
+CREATE OR REPLACE TABLE ordersdwh.DimDate(
+  orderDate date,
+  DimDateKey INT
+)
+
+-- COMMAND ----------
+
+CREATE OR REPLACE  VIEW ordersDWH.VIEW_DimDate
+AS
+SELECT T.*, row_number() over(ORDER BY T.orderDate) as DimDateKey 
+FROM (
+    SELECT
+        DISTINCT(orderDate) as orderDate
+    FROM
+        ordersDWH.trans_sales
+) AS T
+;
+
+-- COMMAND ----------
+
+INSERT INTO ordersdwh.DimDate
+ SELECT * FROM ordersdwh.view_dimdate;
+
+-- COMMAND ----------
+
+-- MAGIC %md
+-- MAGIC ##FACT TABLE
+
+-- COMMAND ----------
+
+CREATE OR REPLACE TABLE ordersDWH.FactSales
+(
+    OrderID INT,
+    Quantity DECIMAL,
+    Unitprice DECIMAL,
+    TotalAmount DECIMAL,
+    DimDateKey INT,
+    DimRegionKey INT,
+    DimProductsKey INT,
+    DimCustomersKey INT
+);
+
+-- COMMAND ----------
+
+SELECT F.OrderID,F.Quantity,F.Unitprice,F.TotalAmount,DC.DimCustomerskey,DP.Dimproductskey,DR.DimRegionkey,DD.DimDatekey
+ from ordersdwh.Trans_sales F
+ left join 
+ ordersdwh.dimcustomers DC
+  on F.CustomerID=DC.CustomerID
+  left join 
+ ordersdwh.dimproducts DP
+  on F.ProductID=DP.ProductID
+  left join 
+ ordersdwh.DimRegion DR
+  on F.Country=DR.Country
+  left join 
+ ordersdwh.DimDate DD
+  on F.orderDate=DD.orderDate;
