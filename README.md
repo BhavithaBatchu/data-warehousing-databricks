@@ -38,9 +38,7 @@ SQL
 ✅ Implemented SCD Type 1 logic for dimension updates
 ✅ Used Databricks notebooks for development and testing
 
-🖼️ **Screenshots**
 
- screenshots of  Databricks notebooks, or query results here.
 
 🧪** How to Run**
 Sign up for a free Databricks Community Edition
